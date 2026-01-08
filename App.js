@@ -14,7 +14,14 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { EVIDENCE_ITEMS, EVIDENCE_TIERS } from './src/constants/evidenceItems';
-import { MANDATORY_REQUIREMENTS, THRESHOLDS, COSTS } from './src/constants/mandatoryRequirements';
+import {
+  MANDATORY_REQUIREMENTS,
+  THRESHOLDS,
+  COSTS,
+  TB_COUNTRIES,
+  ENGLISH_EVIDENCE_TYPES
+} from './src/constants/mandatoryRequirements';
+import { COUNTRIES } from './src/constants/countries';
 import ChecklistItem from './src/components/ChecklistItem';
 import ScoreIndicator from './src/components/ScoreIndicator';
 import MandatoryCard from './src/components/MandatoryCard';
@@ -35,40 +42,79 @@ export default function App() {
   const [sponsorAge, setSponsorAge] = useState('');
   const [annualIncome, setAnnualIncome] = useState('');
   const [cashSavings, setCashSavings] = useState('');
-  const [passportValid, setPassportValid] = useState(false);
 
-  // Auto-fill logic
-  useEffect(() => {
+  // Passport & Application Dates
+  const [passportExpiryDate, setPassportExpiryDate] = useState('');
+  const [intendedAppDate, setIntendedAppDate] = useState('');
+
+  // New Inputs
+  const [residenceCountry, setResidenceCountry] = useState('');
+  const [englishEvidence, setEnglishEvidence] = useState('none');
+  const [tbTestCompleted, setTbTestCompleted] = useState(false);
+
+  // Dropdown States
+  const [isCountryPickerOpen, setIsCountryPickerOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+
+  // Derived filtered countries
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch) return COUNTRIES;
+    return COUNTRIES.filter(c =>
+      c.toLowerCase().includes(countrySearch.toLowerCase())
+    );
+  }, [countrySearch]);
+
+  // Derived auto-fill checks
+  const autoCheckedIds = useMemo(() => {
+    const ids = [];
+
+    // Age Check
     const ageValid = parseInt(applicantAge) >= 18 && parseInt(sponsorAge) >= 18;
+    if (ageValid) ids.push('age_requirement');
+
+    // Financial Check
     const incomeValue = parseFloat(annualIncome) || 0;
     const savingsValue = parseFloat(cashSavings) || 0;
     const financialValid = incomeValue >= THRESHOLDS.MIN_INCOME || savingsValue >= THRESHOLDS.MIN_SAVINGS;
+    if (financialValid) ids.push('financial_threshold');
 
-    let newChecks = [...mandatoryChecks];
+    // Passport Check
+    const parseDate = (dateStr) => {
+      if (!dateStr) return null;
+      const [d, m, y] = dateStr.split('/').map(Number);
+      if (!d || !m || !y || y < 2000) return null;
+      return new Date(y, m - 1, d);
+    };
 
-    // Handle Age
-    if (ageValid && !newChecks.includes('age_requirement')) {
-      newChecks.push('age_requirement');
-    } else if (!ageValid) {
-      newChecks = newChecks.filter(id => id !== 'age_requirement');
+    const expiry = parseDate(passportExpiryDate);
+    const appDate = parseDate(intendedAppDate);
+
+    if (expiry && appDate && expiry >= appDate) {
+      ids.push('passport');
     }
 
-    // Handle Financial
-    if (financialValid && !newChecks.includes('financial_threshold')) {
-      newChecks.push('financial_threshold');
-    } else if (!financialValid) {
-      newChecks = newChecks.filter(id => id !== 'financial_threshold');
+    // TB Test Check
+    const requiresTB = TB_COUNTRIES.some(c => c.toLowerCase() === residenceCountry.trim().toLowerCase());
+    if (!requiresTB && residenceCountry.trim().length > 0) {
+      ids.push('tb_test');
+    } else if (requiresTB && tbTestCompleted) {
+      ids.push('tb_test');
     }
 
-    // Handle Passport
-    if (passportValid && !newChecks.includes('passport')) {
-      newChecks.push('passport');
-    } else if (!passportValid) {
-      newChecks = newChecks.filter(id => id !== 'passport');
+    // English Check
+    if (englishEvidence !== 'none') {
+      ids.push('english_language');
+    } else if (parseInt(applicantAge) >= 65) {
+      ids.push('english_language'); // Auto-exempt if 65+
     }
 
-    setMandatoryChecks(newChecks);
-  }, [applicantAge, sponsorAge, annualIncome, cashSavings, passportValid, mandatoryChecks]); // Added mandatoryChecks to dependency array to prevent stale closure issues
+    return ids;
+  }, [applicantAge, sponsorAge, annualIncome, cashSavings, passportExpiryDate, intendedAppDate, residenceCountry, tbTestCompleted, englishEvidence]);
+
+  // Combine manual checks with auto-filled ones
+  const allMandatoryCheckedIds = useMemo(() => {
+    return Array.from(new Set([...mandatoryChecks, ...autoCheckedIds]));
+  }, [mandatoryChecks, autoCheckedIds]);
 
   const toggleItem = (id) => {
     setSelectedItems(prev =>
@@ -98,75 +144,168 @@ export default function App() {
     return Math.min(100, total);
   }, [selectedItems]);
 
-  const allMandatoryChecked = mandatoryChecks.length === MANDATORY_REQUIREMENTS.length;
+  const allMandatoryChecked = allMandatoryCheckedIds.length === MANDATORY_REQUIREMENTS.length;
 
   const cost = COSTS[location];
 
-  const renderInputSection = () => (
-    <View style={styles.inputContainer}>
-      <Text style={styles.inputSectionTitle}>Quick Check Inputs</Text>
+  const renderInputSection = () => {
+    const requiresTB = TB_COUNTRIES.some(c => c.toLowerCase() === residenceCountry.trim().toLowerCase());
 
-      <View style={styles.row}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Applicant Age</Text>
-          <TextInput
-            style={styles.textInput}
-            value={applicantAge}
-            onChangeText={setApplicantAge}
-            placeholder="e.g. 25"
-            keyboardType="numeric"
-          />
+    return (
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputSectionTitle}>Step 1.1: Applicant Details</Text>
+
+        <View style={styles.row}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Applicant Age</Text>
+            <TextInput
+              style={styles.textInput}
+              value={applicantAge}
+              onChangeText={setApplicantAge}
+              placeholder="e.g. 25"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Sponsor Age</Text>
+            <TextInput
+              style={styles.textInput}
+              value={sponsorAge}
+              onChangeText={setSponsorAge}
+              placeholder="e.g. 30"
+              keyboardType="numeric"
+            />
+          </View>
         </View>
+
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Sponsor Age</Text>
-          <TextInput
+          <Text style={styles.inputLabel}>Residence Country</Text>
+          <TouchableOpacity
             style={styles.textInput}
-            value={sponsorAge}
-            onChangeText={setSponsorAge}
-            placeholder="e.g. 30"
-            keyboardType="numeric"
-          />
+            onPress={() => setIsCountryPickerOpen(!isCountryPickerOpen)}
+          >
+            <Text style={{ color: residenceCountry ? '#333' : '#999' }}>
+              {residenceCountry || 'Select Country...'}
+            </Text>
+            <MaterialCommunityIcons
+              name={isCountryPickerOpen ? "chevron-up" : "chevron-down"}
+              size={20}
+              color="#666"
+              style={{ position: 'absolute', right: 12, top: 12 }}
+            />
+          </TouchableOpacity>
+
+          {isCountryPickerOpen && (
+            <View style={styles.dropdownContainer}>
+              <TextInput
+                style={styles.searchBar}
+                placeholder="Search country..."
+                value={countrySearch}
+                onChangeText={setCountrySearch}
+              />
+              <ScrollView style={[styles.countryList, { maxHeight: 250 }]} nestedScrollEnabled>
+                {filteredCountries.map(country => (
+                  <TouchableOpacity
+                    key={country}
+                    style={styles.countryItem}
+                    onPress={() => {
+                      setResidenceCountry(country);
+                      setIsCountryPickerOpen(false);
+                      setCountrySearch('');
+                    }}
+                  >
+                    <Text style={styles.countryText}>{country}</Text>
+                  </TouchableOpacity>
+                ))}
+                {filteredCountries.length === 0 && (
+                  <Text style={styles.noResultsText}>No results</Text>
+                )}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+
+        <View style={{ marginTop: isCountryPickerOpen ? 10 : 0 }}>
+          {requiresTB && (
+            <TouchableOpacity
+              style={[styles.passportToggle, tbTestCompleted && styles.passportToggleActive, { marginBottom: 12, marginTop: 4 }]}
+              onPress={() => setTbTestCompleted(!tbTestCompleted)}
+            >
+              <MaterialCommunityIcons
+                name={tbTestCompleted ? "check-circle" : "alert-circle-outline"}
+                size={20}
+                color={tbTestCompleted ? "#fff" : "#D32F2F"}
+              />
+              <Text style={[styles.passportToggleText, tbTestCompleted && styles.passportToggleTextActive]}>
+                {tbTestCompleted ? "TB Test Certificate obtained" : "TB Test required for " + residenceCountry}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Text style={styles.inputLabel}>English Language Evidence</Text>
+        <View style={styles.evidenceGrid}>
+          {ENGLISH_EVIDENCE_TYPES.filter(t => t.id !== 'none').map(type => (
+            <TouchableOpacity
+              key={type.id}
+              style={[styles.evidenceBtn, englishEvidence === type.id && styles.evidenceBtnActive]}
+              onPress={() => setEnglishEvidence(englishEvidence === type.id ? 'none' : type.id)}
+            >
+              <Text style={[styles.evidenceBtnText, englishEvidence === type.id && styles.evidenceBtnTextActive]}>
+                {type.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.row}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Annual Income (£)</Text>
+            <TextInput
+              style={styles.textInput}
+              value={annualIncome}
+              onChangeText={setAnnualIncome}
+              placeholder="e.g. 30000"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Cash Savings (£)</Text>
+            <TextInput
+              style={styles.textInput}
+              value={cashSavings}
+              onChangeText={setCashSavings}
+              placeholder="e.g. 10000"
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+
+        <View style={styles.row}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Intended Application Date</Text>
+            <TextInput
+              style={styles.textInput}
+              value={intendedAppDate}
+              onChangeText={setIntendedAppDate}
+              placeholder="DD/MM/YYYY"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Passport Expiry Date</Text>
+            <TextInput
+              style={styles.textInput}
+              value={passportExpiryDate}
+              onChangeText={setPassportExpiryDate}
+              placeholder="DD/MM/YYYY"
+              keyboardType="numeric"
+            />
+          </View>
         </View>
       </View>
-
-      <View style={styles.row}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Annual Income (£)</Text>
-          <TextInput
-            style={styles.textInput}
-            value={annualIncome}
-            onChangeText={setAnnualIncome}
-            placeholder="e.g. 30000"
-            keyboardType="numeric"
-          />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Cash Savings (£)</Text>
-          <TextInput
-            style={styles.textInput}
-            value={cashSavings}
-            onChangeText={setCashSavings}
-            placeholder="e.g. 10000"
-            keyboardType="numeric"
-          />
-        </View>
-      </View>
-
-      <TouchableOpacity
-        style={[styles.passportToggle, passportValid && styles.passportToggleActive]}
-        onPress={() => setPassportValid(!passportValid)}
-      >
-        <MaterialCommunityIcons
-          name={passportValid ? "passport-biometric" : "passport-biometric"}
-          size={20}
-          color={passportValid ? "#fff" : "#666"}
-        />
-        <Text style={[styles.passportToggleText, passportValid && styles.passportToggleTextActive]}>
-          {passportValid ? "Passport is Valid" : "Check if Passport is Valid"}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   const renderCostAssessment = () => (
     <View style={styles.costContainer}>
@@ -246,7 +385,7 @@ export default function App() {
           <MandatoryCard
             key={item.id}
             item={item}
-            isChecked={mandatoryChecks.includes(item.id)}
+            isChecked={allMandatoryCheckedIds.includes(item.id)}
             onPress={() => toggleMandatory(item.id)}
           />
         ))}
@@ -500,6 +639,71 @@ const styles = StyleSheet.create({
     color: '#5C6BC0',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  evidenceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  evidenceBtn: {
+    backgroundColor: '#F0F2F9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E4F0',
+  },
+  evidenceBtnActive: {
+    backgroundColor: '#1A237E',
+    borderColor: '#1A237E',
+  },
+  evidenceBtnText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '600',
+  },
+  evidenceBtnTextActive: {
+    color: '#fff',
+  },
+  dropdownContainer: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E0E4F0',
+    borderRadius: 8,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  searchBar: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F9',
+    fontSize: 14,
+    color: '#333',
+  },
+  countryList: {
+    paddingVertical: 4,
+  },
+  countryItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F9',
+  },
+  countryText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  noResultsText: {
+    padding: 12,
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
   infoBox: {
     flexDirection: 'row',
