@@ -27,12 +27,14 @@ import ScoreIndicator from './src/components/ScoreIndicator';
 import MandatoryCard from './src/components/MandatoryCard';
 
 const SCREENS = {
+  LANDING: 'landing',
   PREREQUISITES: 'prerequisites',
   CHECKLIST: 'checklist',
+  SUMMARY: 'summary',
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState(SCREENS.PREREQUISITES);
+  const [currentScreen, setCurrentScreen] = useState(SCREENS.LANDING);
   const [selectedItems, setSelectedItems] = useState([]);
   const [mandatoryChecks, setMandatoryChecks] = useState([]);
 
@@ -115,6 +117,21 @@ export default function App() {
   const allMandatoryCheckedIds = useMemo(() => {
     return Array.from(new Set([...mandatoryChecks, ...autoCheckedIds]));
   }, [mandatoryChecks, autoCheckedIds]);
+
+  const handleDateChange = (text, setter) => {
+    // Strip everything except numbers
+    const cleaned = text.replace(/\D/g, '');
+    let formatted = cleaned;
+
+    if (cleaned.length > 2) {
+      formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
+    }
+    if (cleaned.length > 4) {
+      formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4, 10)}`;
+    }
+
+    setter(formatted);
+  };
 
   const toggleItem = (id) => {
     setSelectedItems(prev =>
@@ -287,9 +304,10 @@ export default function App() {
             <TextInput
               style={styles.textInput}
               value={intendedAppDate}
-              onChangeText={setIntendedAppDate}
+              onChangeText={(text) => handleDateChange(text, setIntendedAppDate)}
               placeholder="DD/MM/YYYY"
               keyboardType="numeric"
+              maxLength={10}
             />
           </View>
           <View style={styles.inputGroup}>
@@ -297,9 +315,10 @@ export default function App() {
             <TextInput
               style={styles.textInput}
               value={passportExpiryDate}
-              onChangeText={setPassportExpiryDate}
+              onChangeText={(text) => handleDateChange(text, setPassportExpiryDate)}
               placeholder="DD/MM/YYYY"
               keyboardType="numeric"
+              maxLength={10}
             />
           </View>
         </View>
@@ -360,6 +379,118 @@ export default function App() {
           />
         ))}
       </View>
+    );
+  };
+
+  const renderLandingScreen = () => (
+    <View style={styles.landingContainer}>
+      <View style={styles.landingContent}>
+        <View style={styles.landingIconContainer}>
+          <MaterialCommunityIcons name="shield-check" size={80} color="#fff" />
+        </View>
+        <Text style={styles.landingTitle}>UK Partner Visa</Text>
+        <Text style={styles.landingSubtitle}>Evidence Strength Assessment</Text>
+
+        <View style={styles.featureList}>
+          <View style={styles.featureItem}>
+            <MaterialCommunityIcons name="check-circle-outline" size={24} color="#C5CAE9" />
+            <Text style={styles.featureText}>Verify Mandatory Prerequisites</Text>
+          </View>
+          <View style={styles.featureItem}>
+            <MaterialCommunityIcons name="trending-up" size={24} color="#C5CAE9" />
+            <Text style={styles.featureText}>Calculate Application Strength</Text>
+          </View>
+          <View style={styles.featureItem}>
+            <MaterialCommunityIcons name="cash-multiple" size={24} color="#C5CAE9" />
+            <Text style={styles.featureText}>Estimate Application & IHS Costs</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.getStartedButton}
+          onPress={() => setCurrentScreen(SCREENS.PREREQUISITES)}
+        >
+          <Text style={styles.getStartedText}>Get Started</Text>
+          <MaterialCommunityIcons name="arrow-right" size={24} color="#1A237E" />
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.versionText}>v1.1 Prototype</Text>
+    </View>
+  );
+
+  const renderSummaryScreen = () => {
+    const selectedEvidence = EVIDENCE_ITEMS.filter(item => selectedItems.includes(item.id));
+    const mandatoryCompleted = MANDATORY_REQUIREMENTS.filter(item => allMandatoryCheckedIds.includes(item.id));
+
+    return (
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => setCurrentScreen(SCREENS.CHECKLIST)}
+        >
+          <MaterialCommunityIcons name="arrow-left" size={20} color="#5C6BC0" />
+          <Text style={styles.backButtonText}>Back to Checklist</Text>
+        </TouchableOpacity>
+
+        <View style={styles.header}>
+          <Text style={styles.appTitle}>Application Summary</Text>
+          <Text style={styles.appSubtitle}>Review your readiness for the Home Office</Text>
+        </View>
+
+        <ScoreIndicator score={score} />
+
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardTitle}>Mandatory Requirements</Text>
+          {MANDATORY_REQUIREMENTS.map(item => (
+            <View key={item.id} style={styles.summaryItem}>
+              <MaterialCommunityIcons
+                name={allMandatoryCheckedIds.includes(item.id) ? "check-circle" : "alert-circle"}
+                size={20}
+                color={allMandatoryCheckedIds.includes(item.id) ? "#4CAF50" : "#F44336"}
+              />
+              <Text style={[styles.summaryItemText, !allMandatoryCheckedIds.includes(item.id) && { color: '#F44336' }]}>
+                {item.label}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardTitle}>Relationship Evidence Checklist</Text>
+          {selectedEvidence.length > 0 ? (
+            selectedEvidence.map(item => (
+              <View key={item.id} style={styles.summaryItem}>
+                <MaterialCommunityIcons name="file-document-outline" size={20} color="#1A237E" />
+                <Text style={styles.summaryItemText}>{item.label}</Text>
+                <View style={[styles.tierBadge, { backgroundColor: EVIDENCE_TIERS[item.tier.toUpperCase()].color + '20' }]}>
+                  <Text style={[styles.tierBadgeText, { color: EVIDENCE_TIERS[item.tier.toUpperCase()].color }]}>
+                    {EVIDENCE_TIERS[item.tier.toUpperCase()].title}
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noEvidenceText}>No evidence selected yet.</Text>
+          )}
+        </View>
+
+        <View style={styles.costSummaryCard}>
+          <Text style={styles.costSummaryTitle}>Estimated Total Costs</Text>
+          <Text style={styles.costSummaryAmount}>£{(cost.fee + cost.ihs).toLocaleString()}</Text>
+          <Text style={styles.costSummarySub}>Based on {location === 'INSIDE_UK' ? 'Inside UK' : 'Outside UK'} application</Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.resetButton}
+          onPress={() => {
+            setSelectedItems([]);
+            setMandatoryChecks([]);
+            setCurrentScreen(SCREENS.LANDING);
+          }}
+        >
+          <Text style={styles.resetButtonText}>Start Fresh</Text>
+        </TouchableOpacity>
+      </ScrollView>
     );
   };
 
@@ -450,10 +581,18 @@ export default function App() {
       })}
 
       <TouchableOpacity
+        style={styles.nextButton}
+        onPress={() => setCurrentScreen(SCREENS.SUMMARY)}
+      >
+        <Text style={styles.nextButtonText}>Review Summary</Text>
+        <MaterialCommunityIcons name="clipboard-check" size={24} color="#fff" />
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={styles.resetButton}
         onPress={() => setSelectedItems([])}
       >
-        <Text style={styles.resetButtonText}>Reset Evidence</Text>
+        <Text style={styles.resetButtonText}>Clear Selections</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -461,7 +600,10 @@ export default function App() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <RNStatusBar barStyle="dark-content" />
-      {currentScreen === SCREENS.PREREQUISITES ? renderPrerequisites() : renderChecklist()}
+      {currentScreen === SCREENS.LANDING && renderLandingScreen()}
+      {currentScreen === SCREENS.PREREQUISITES && renderPrerequisites()}
+      {currentScreen === SCREENS.CHECKLIST && renderChecklist()}
+      {currentScreen === SCREENS.SUMMARY && renderSummaryScreen()}
       <StatusBar style="auto" />
     </SafeAreaView>
   );
@@ -794,5 +936,151 @@ const styles = StyleSheet.create({
     color: '#F44336',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Landing Styles
+  landingContainer: {
+    flex: 1,
+    backgroundColor: '#1A237E',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  landingContent: {
+    alignItems: 'center',
+  },
+  landingIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  landingTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  landingSubtitle: {
+    fontSize: 18,
+    color: '#C5CAE9',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 40,
+  },
+  featureList: {
+    width: '100%',
+    marginBottom: 50,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 15,
+  },
+  featureText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  getStartedButton: {
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 18,
+    borderRadius: 30,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  getStartedText: {
+    color: '#1A237E',
+    fontSize: 20,
+    fontWeight: '800',
+    marginRight: 10,
+  },
+  versionText: {
+    position: 'absolute',
+    bottom: 20,
+    alignSelf: 'center',
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 12,
+  },
+  // Summary Styles
+  summaryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  summaryCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F9',
+    paddingBottom: 8,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
+  },
+  summaryItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#555',
+  },
+  tierBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  tierBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  noEvidenceText: {
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  costSummaryCard: {
+    backgroundColor: '#1A237E',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  costSummaryTitle: {
+    color: '#C5CAE9',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  costSummaryAmount: {
+    color: '#fff',
+    fontSize: 36,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  costSummarySub: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
   },
 });
