@@ -19,12 +19,17 @@ import {
   THRESHOLDS,
   COSTS,
   TB_COUNTRIES,
-  ENGLISH_EVIDENCE_TYPES
+  ENGLISH_EVIDENCE_TYPES,
+  ENGLISH_EXEMPT_COUNTRIES
 } from './src/constants/mandatoryRequirements';
 import { COUNTRIES } from './src/constants/countries';
 import ChecklistItem from './src/components/ChecklistItem';
 import ScoreIndicator from './src/components/ScoreIndicator';
 import MandatoryCard from './src/components/MandatoryCard';
+import EvidenceDetailModal from './src/components/EvidenceDetailModal';
+import DatePicker from './src/components/DatePicker';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 const SCREENS = {
   LANDING: 'landing',
@@ -58,6 +63,10 @@ export default function App() {
   const [isCountryPickerOpen, setIsCountryPickerOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
 
+  // Info Modal State
+  const [selectedItemForDetail, setSelectedItemForDetail] = useState(null);
+  const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
+
   // Derived filtered countries
   const filteredCountries = useMemo(() => {
     if (!countrySearch) return COUNTRIES;
@@ -83,9 +92,32 @@ export default function App() {
     // Passport Check
     const parseDate = (dateStr) => {
       if (!dateStr) return null;
-      const [d, m, y] = dateStr.split('/').map(Number);
-      if (!d || !m || !y || y < 2000) return null;
-      return new Date(y, m - 1, d);
+      const parts = dateStr.split('/');
+      if (parts.length !== 3) return null;
+
+      let [d, m, y] = parts.map(Number);
+      if (!d || !m || !y) return null;
+
+      // Handle 2-digit years (e.g., '26' -> 2026)
+      // Assume 2000s for anything 0-99
+      if (y < 100) {
+        y += 2000;
+      }
+
+      // Basic year range check
+      if (y < 1900 || y > 2100) return null;
+
+      const date = new Date(y, m - 1, d);
+
+      // Validate the date is real (prevents rollover like Feb 30 -> March 2)
+      if (
+        date.getFullYear() === y &&
+        date.getMonth() === m - 1 &&
+        date.getDate() === d
+      ) {
+        return date;
+      }
+      return null;
     };
 
     const expiry = parseDate(passportExpiryDate);
@@ -104,7 +136,8 @@ export default function App() {
     }
 
     // English Check
-    if (englishEvidence !== 'none') {
+    const isExemptCountry = ENGLISH_EXEMPT_COUNTRIES.some(c => c.toLowerCase() === residenceCountry.trim().toLowerCase());
+    if (englishEvidence !== 'none' || isExemptCountry) {
       ids.push('english_language');
     } else if (parseInt(applicantAge) >= 65) {
       ids.push('english_language'); // Auto-exempt if 65+
@@ -161,6 +194,103 @@ export default function App() {
     return Math.min(100, total);
   }, [selectedItems]);
 
+  const handleShowDetail = (item) => {
+    setSelectedItemForDetail(item);
+    setIsDetailModalVisible(true);
+  };
+
+  const exportToPDF = async () => {
+    const selectedEvidence = EVIDENCE_ITEMS.filter(item => selectedItems.includes(item.id));
+    const mandatoryCompleted = MANDATORY_REQUIREMENTS.filter(item => allMandatoryCheckedIds.includes(item.id));
+
+    const html = `
+      <html>
+        <head>
+          <style>
+            body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; }
+            .header { text-align: center; border-bottom: 2px solid #1A237E; padding-bottom: 20px; margin-bottom: 30px; }
+            .title { font-size: 28px; color: #1A237E; margin: 0; font-weight: bold; }
+            .subtitle { font-size: 16px; color: #5C6BC0; margin-top: 5px; }
+            .score-box { background: #1A237E; color: white; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 30px; }
+            .score-value { font-size: 48px; font-weight: bold; }
+            .section-title { font-size: 18px; font-weight: bold; color: #1A237E; border-bottom: 1px solid #E0E4F0; padding-bottom: 8px; margin-top: 30px; margin-bottom: 15px; }
+            .item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #F0F2F9; }
+            .item-label { flex: 1; font-size: 14px; }
+            .status { font-weight: bold; font-size: 14px; }
+            .checked { color: #4CAF50; }
+            .unchecked { color: #F44336; }
+            .tier-badge { font-size: 10px; background: #E8EAF6; color: #1A237E; padding: 2px 8px; border-radius: 4px; margin-left: 10px; text-transform: uppercase; }
+            .cost-box { background: #F8F9FE; border: 1px solid #E0E4F0; padding: 20px; border-radius: 12px; margin-top: 30px; }
+            .cost-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+            .total-row { border-top: 2px solid #1A237E; margin-top: 10px; padding-top: 10px; font-weight: bold; font-size: 18px; color: #1A237E; }
+            .footer { margin-top: 50px; font-size: 10px; color: #999; text-align: center; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1 class="title">UK Partner Visa Checklist</h1>
+            <p class="subtitle">Evidence Strength & Readiness Report</p>
+          </div>
+
+          <div class="score-box">
+            <div class="subtitle">Relationship Strength Score</div>
+            <div class="score-value">${score}%</div>
+          </div>
+
+          <div class="section-title">Mandatory Requirements</div>
+          ${MANDATORY_REQUIREMENTS.map(item => {
+      const isChecked = allMandatoryCheckedIds.includes(item.id);
+      return `
+              <div class="item">
+                <span class="item-label">${item.label}</span>
+                <span class="status ${isChecked ? 'checked' : 'unchecked'}">${isChecked ? '✓ VERIFIED' : '✗ MISSING'}</span>
+              </div>
+            `;
+    }).join('')}
+
+          <div class="section-title">Relationship Evidence</div>
+          ${selectedEvidence.length > 0 ? selectedEvidence.map(item => `
+            <div class="item">
+              <span class="item-label">${item.label}</span>
+              <span class="tier-badge">${EVIDENCE_TIERS[item.tier.toUpperCase()].title}</span>
+            </div>
+          `).join('') : '<p>No evidence selected.</p>'}
+
+          <div class="cost-box">
+            <div class="section-title" style="margin-top: 0; border: none;">Estimated Application Costs</div>
+            <div class="cost-row">
+              <span>Location</span>
+              <span>${location === 'INSIDE_UK' ? 'Inside UK' : 'Outside UK'}</span>
+            </div>
+            <div class="cost-row">
+              <span>Application Fee</span>
+              <span>£${cost.fee.toLocaleString()}</span>
+            </div>
+            <div class="cost-row">
+              <span>IHS Surcharge</span>
+              <span>£${cost.ihs.toLocaleString()}</span>
+            </div>
+            <div class="cost-row total-row">
+              <span>Total Estimated Cost</span>
+              <span>£${(cost.fee + cost.ihs).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div class="footer">
+            Generated on ${new Date().toLocaleDateString()} via VisaEvidence UK Prototype. Always consult GOV.UK for official rules.
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
+  };
+
   const allMandatoryChecked = allMandatoryCheckedIds.length === MANDATORY_REQUIREMENTS.length;
 
   const cost = COSTS[location];
@@ -170,6 +300,21 @@ export default function App() {
 
     return (
       <View style={styles.inputContainer}>
+        <Text style={styles.inputSectionTitle}>Application Location</Text>
+        <View style={styles.locationSelector}>
+          {Object.keys(COSTS).map(key => (
+            <TouchableOpacity
+              key={key}
+              style={[styles.locationBtn, location === key && styles.locationBtnActive]}
+              onPress={() => setLocation(key)}
+            >
+              <Text style={[styles.locationBtnText, location === key && styles.locationBtnTextActive]}>
+                {COSTS[key].label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <Text style={styles.inputSectionTitle}>Step 1.1: Applicant Details</Text>
 
         <View style={styles.row}>
@@ -260,20 +405,27 @@ export default function App() {
           )}
         </View>
 
-        <Text style={styles.inputLabel}>English Language Evidence</Text>
-        <View style={styles.evidenceGrid}>
-          {ENGLISH_EVIDENCE_TYPES.filter(t => t.id !== 'none').map(type => (
-            <TouchableOpacity
-              key={type.id}
-              style={[styles.evidenceBtn, englishEvidence === type.id && styles.evidenceBtnActive]}
-              onPress={() => setEnglishEvidence(englishEvidence === type.id ? 'none' : type.id)}
-            >
-              <Text style={[styles.evidenceBtnText, englishEvidence === type.id && styles.evidenceBtnTextActive]}>
-                {type.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* Only show English evidence options if not from an exempt country */}
+        {
+          !ENGLISH_EXEMPT_COUNTRIES.some(c => c.toLowerCase() === residenceCountry.trim().toLowerCase()) && (
+            <>
+              <Text style={styles.inputLabel}>English Language Evidence</Text>
+              <View style={styles.evidenceGrid}>
+                {ENGLISH_EVIDENCE_TYPES.filter(t => t.id !== 'none').map(type => (
+                  <TouchableOpacity
+                    key={type.id}
+                    style={[styles.evidenceBtn, englishEvidence === type.id && styles.evidenceBtnActive]}
+                    onPress={() => setEnglishEvidence(englishEvidence === type.id ? 'none' : type.id)}
+                  >
+                    <Text style={[styles.evidenceBtnText, englishEvidence === type.id && styles.evidenceBtnTextActive]}>
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )
+        }
 
         <View style={styles.row}>
           <View style={styles.inputGroup}>
@@ -301,64 +453,25 @@ export default function App() {
         <View style={styles.row}>
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Intended Application Date</Text>
-            <TextInput
-              style={styles.textInput}
+            <DatePicker
               value={intendedAppDate}
               onChangeText={(text) => handleDateChange(text, setIntendedAppDate)}
               placeholder="DD/MM/YYYY"
-              keyboardType="numeric"
-              maxLength={10}
             />
           </View>
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Passport Expiry Date</Text>
-            <TextInput
-              style={styles.textInput}
+            <DatePicker
               value={passportExpiryDate}
               onChangeText={(text) => handleDateChange(text, setPassportExpiryDate)}
               placeholder="DD/MM/YYYY"
-              keyboardType="numeric"
-              maxLength={10}
             />
           </View>
         </View>
-      </View>
+      </View >
     );
   };
 
-  const renderCostAssessment = () => (
-    <View style={styles.costContainer}>
-      <Text style={styles.inputSectionTitle}>Application Location & Cost</Text>
-      <View style={styles.locationSelector}>
-        {Object.keys(COSTS).map(key => (
-          <TouchableOpacity
-            key={key}
-            style={[styles.locationBtn, location === key && styles.locationBtnActive]}
-            onPress={() => setLocation(key)}
-          >
-            <Text style={[styles.locationBtnText, location === key && styles.locationBtnTextActive]}>
-              {COSTS[key].label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.costBreakdown}>
-        <View style={styles.costRow}>
-          <Text style={styles.costLabel}>Application Fee</Text>
-          <Text style={styles.costValue}>£{cost.fee.toLocaleString()}</Text>
-        </View>
-        <View style={styles.costRow}>
-          <Text style={styles.costLabel}>IHS Health Surcharge</Text>
-          <Text style={styles.costValue}>£{cost.ihs.toLocaleString()}</Text>
-        </View>
-        <View style={[styles.costRow, styles.totalRow]}>
-          <Text style={styles.totalLabel}>Total Estimated Cost</Text>
-          <Text style={styles.totalValue}>£{(cost.fee + cost.ihs).toLocaleString()}</Text>
-        </View>
-      </View>
-    </View>
-  );
 
   const renderSection = (tierKey) => {
     const tier = EVIDENCE_TIERS[tierKey.toUpperCase()];
@@ -481,6 +594,14 @@ export default function App() {
         </View>
 
         <TouchableOpacity
+          style={styles.exportButton}
+          onPress={exportToPDF}
+        >
+          <MaterialCommunityIcons name="file-pdf-box" size={24} color="#fff" />
+          <Text style={styles.exportButtonText}>Export Checklist as PDF</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.resetButton}
           onPress={() => {
             setSelectedItems([]);
@@ -502,14 +623,14 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.appTitle}>Step 1: Prerequisites</Text>
-          <Text style={styles.appSubtitle}>Mandatory Requirements & Cost Assessment</Text>
+          <Text style={styles.appSubtitle}>Mandatory Requirements & Details</Text>
         </View>
 
-        {renderCostAssessment()}
         {renderInputSection()}
 
         <View style={styles.sectionDivider}>
-          <Text style={styles.dividerText}>Mandatory Checklist (Auto-filled)</Text>
+          <Text style={styles.dividerText}>Mandatory Checklist (Read-only)</Text>
+          <Text style={styles.dividerSubtext}>These items update automatically as you fill the form</Text>
         </View>
 
         {MANDATORY_REQUIREMENTS.map(item => (
@@ -574,6 +695,7 @@ export default function App() {
                 item={item}
                 isSelected={selectedItems.includes(item.id)}
                 onPress={() => toggleItem(item.id)}
+                onInfoPress={handleShowDetail}
               />
             ))}
           </View>
@@ -604,6 +726,11 @@ export default function App() {
       {currentScreen === SCREENS.PREREQUISITES && renderPrerequisites()}
       {currentScreen === SCREENS.CHECKLIST && renderChecklist()}
       {currentScreen === SCREENS.SUMMARY && renderSummaryScreen()}
+      <EvidenceDetailModal
+        item={selectedItemForDetail}
+        isVisible={isDetailModalVisible}
+        onClose={() => setIsDetailModalVisible(false)}
+      />
       <StatusBar style="auto" />
     </SafeAreaView>
   );
@@ -781,6 +908,11 @@ const styles = StyleSheet.create({
     color: '#5C6BC0',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  dividerSubtext: {
+    fontSize: 12,
+    color: '#7986CB',
+    marginTop: 2,
   },
   evidenceGrid: {
     flexDirection: 'row',
@@ -1082,5 +1214,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
+  },
+  exportButton: {
+    backgroundColor: '#D32F2F',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  exportButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
   },
 });

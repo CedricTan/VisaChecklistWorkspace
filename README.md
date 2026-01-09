@@ -2,6 +2,8 @@
 
 VisaEvidence UK is a mobile application prototype built with React Native and Expo. It helps applicants preparing for a UK Partner Visa to assess their mandatory prerequisites and gauge the "strength of evidence" for their relationship based on official Home Office guidance.
 
+**[🚀 Live Demo](https://CedricTan.github.io/VisaChecklistWorkspace/)**
+
 ## Features
 
 - **Step 1: Mandatory Prerequisites**
@@ -49,6 +51,22 @@ VisaEvidence UK is a mobile application prototype built with React Native and Ex
 2. **To view on your phone**: Scan the QR code displayed in the terminal using the Expo Go app.
 
 3. **To view in the browser**: Press `w` in the terminal to open the web version.
+
+### Remote Access (Tunneling)
+
+If you are on a different network than your development machine, or if the standard connection fails, you can use Expo's tunneling feature:
+
+1. Install the global tunneling dependency (if not already installed):
+   ```bash
+   npm install -g @expo/ngrok
+   ```
+
+2. Start the project with the tunnel flag:
+   ```bash
+   npx expo start --tunnel
+   ```
+
+3. Scan the QR code with the Expo Go app. Access will be routed via ngrok, allowing it to work across different networks.
 
 ## Project Structure
 

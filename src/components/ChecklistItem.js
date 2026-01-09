@@ -2,7 +2,7 @@ import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-const ChecklistItem = ({ item, isSelected, onPress }) => {
+const ChecklistItem = ({ item, isSelected, onPress, onInfoPress }) => {
     return (
         <TouchableOpacity
             style={[styles.container, isSelected && styles.selectedContainer]}
@@ -21,6 +21,15 @@ const ChecklistItem = ({ item, isSelected, onPress }) => {
                     {item.label}
                 </Text>
             </View>
+            <TouchableOpacity
+                style={styles.infoButton}
+                onPress={(e) => {
+                    e.stopPropagation(); // Prevent toggling the checkbox
+                    onInfoPress(item);
+                }}
+            >
+                <MaterialCommunityIcons name="information-outline" size={22} color="#5C6BC0" />
+            </TouchableOpacity>
         </TouchableOpacity>
     );
 };
@@ -58,6 +67,10 @@ const styles = StyleSheet.create({
     },
     selectedLabel: {
         color: '#2E7D32',
+    },
+    infoButton: {
+        padding: 4,
+        marginLeft: 8,
     },
 });
 

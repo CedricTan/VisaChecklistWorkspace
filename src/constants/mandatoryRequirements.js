@@ -90,3 +90,11 @@ export const ENGLISH_EVIDENCE_TYPES = [
     { id: 'medical_exemption', label: 'Exemption (Medical)' },
     { id: 'other', label: 'Other/Manual' },
 ];
+
+export const ENGLISH_EXEMPT_COUNTRIES = [
+    'Antigua and Barbuda', 'Australia', 'The Bahamas', 'Barbados', 'Belize',
+    'British Overseas Territories', 'Canada', 'Dominica', 'Grenada', 'Guyana',
+    'Ireland', 'Jamaica', 'Malta', 'New Zealand', 'St Kitts and Nevis',
+    'St Lucia', 'St Vincent and the Grenadines', 'Trinidad and Tobago',
+    'United Kingdom', 'USA'
+];
