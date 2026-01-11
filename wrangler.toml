@@ -1,4 +1,4 @@
-name = "visachecklistworkspace"
+name = "visachecklist"
 compatibility_date = "2024-04-03"
 [assets]
 directory = "./dist"
