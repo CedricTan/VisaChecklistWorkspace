@@ -2,14 +2,12 @@
   "name": "visachecklistworkspace",
   "version": "1.0.0",
   "main": "index.js",
-  "homepage": "https://CedricTan.github.io/VisaChecklistWorkspace/",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "predeploy": "npx expo export -p web && node patch-assets.js",
-    "deploy": "gh-pages -d dist --dotfiles"
+    "build": "npx expo export -p web && node patch-assets.js"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -24,8 +22,5 @@
     "react-native": "0.81.5",
     "react-native-web": "^0.21.0"
   },
-  "private": true,
-  "devDependencies": {
-    "gh-pages": "^6.3.0"
-  }
+  "private": true
 }

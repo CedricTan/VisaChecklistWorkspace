@@ -20,7 +20,8 @@ import {
   COSTS,
   TB_COUNTRIES,
   ENGLISH_EVIDENCE_TYPES,
-  ENGLISH_EXEMPT_COUNTRIES
+  ENGLISH_EXEMPT_COUNTRIES,
+  SPONSOR_STATUS_OPTIONS
 } from './src/constants/mandatoryRequirements';
 import { COUNTRIES } from './src/constants/countries';
 import ChecklistItem from './src/components/ChecklistItem';
@@ -45,6 +46,7 @@ export default function App() {
 
   // Data Inputs
   const [location, setLocation] = useState('INSIDE_UK');
+  const [sponsorStatus, setSponsorStatus] = useState('');
   const [applicantAge, setApplicantAge] = useState('');
   const [sponsorAge, setSponsorAge] = useState('');
   const [annualIncome, setAnnualIncome] = useState('');
@@ -61,11 +63,13 @@ export default function App() {
 
   // Dropdown States
   const [isCountryPickerOpen, setIsCountryPickerOpen] = useState(false);
+  const [isSponsorStatusPickOpen, setIsSponsorStatusPickOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
 
   // Info Modal State
   const [selectedItemForDetail, setSelectedItemForDetail] = useState(null);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
+  const [isEnglishPickerOpen, setIsEnglishPickerOpen] = useState(false);
 
   // Derived filtered countries
   const filteredCountries = useMemo(() => {
@@ -79,9 +83,14 @@ export default function App() {
   const autoCheckedIds = useMemo(() => {
     const ids = [];
 
-    // Age Check
-    const ageValid = parseInt(applicantAge) >= 18 && parseInt(sponsorAge) >= 18;
-    if (ageValid) ids.push('age_requirement');
+    // Sponsor Age Check
+    if (parseInt(sponsorAge) >= 18) ids.push('sponsor_age');
+
+    // Applicant Age Check
+    if (parseInt(applicantAge) >= 18) ids.push('applicant_age');
+
+    // Sponsor Status Check
+    if (sponsorStatus) ids.push('sponsor_status');
 
     // Financial Check
     const incomeValue = parseFloat(annualIncome) || 0;
@@ -144,7 +153,7 @@ export default function App() {
     }
 
     return ids;
-  }, [applicantAge, sponsorAge, annualIncome, cashSavings, passportExpiryDate, intendedAppDate, residenceCountry, tbTestCompleted, englishEvidence]);
+  }, [applicantAge, sponsorAge, sponsorStatus, annualIncome, cashSavings, passportExpiryDate, intendedAppDate, residenceCountry, tbTestCompleted, englishEvidence]);
 
   // Combine manual checks with auto-filled ones
   const allMandatoryCheckedIds = useMemo(() => {
@@ -297,9 +306,10 @@ export default function App() {
 
   const renderInputSection = () => {
     const requiresTB = TB_COUNTRIES.some(c => c.toLowerCase() === residenceCountry.trim().toLowerCase());
+    const isAnyDropdownOpen = isCountryPickerOpen || isSponsorStatusPickOpen || isEnglishPickerOpen;
 
     return (
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, { zIndex: isAnyDropdownOpen ? 3000 : 1 }]}>
         <Text style={styles.inputSectionTitle}>Application Location</Text>
         <View style={styles.locationSelector}>
           {Object.keys(COSTS).map(key => (
@@ -315,19 +325,46 @@ export default function App() {
           ))}
         </View>
 
-        <Text style={styles.inputSectionTitle}>Step 1.1: Applicant Details</Text>
+        {/* --- SPONSOR SECTION --- */}
+        <View style={[styles.splitSection, { zIndex: isSponsorStatusPickOpen ? 3000 : 1 }]}>
+          <Text style={styles.splitSectionHeader}>1. Sponsor's Details</Text>
 
-        <View style={styles.row}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Applicant Age</Text>
-            <TextInput
+          <View style={[styles.inputGroup, { zIndex: isSponsorStatusPickOpen ? 3000 : 1 }]}>
+            <Text style={styles.inputLabel}>Sponsor Status in UK</Text>
+            <TouchableOpacity
               style={styles.textInput}
-              value={applicantAge}
-              onChangeText={setApplicantAge}
-              placeholder="e.g. 25"
-              keyboardType="numeric"
-            />
+              onPress={() => setIsSponsorStatusPickOpen(!isSponsorStatusPickOpen)}
+            >
+              <Text style={{ color: sponsorStatus ? '#333' : '#999' }}>
+                {SPONSOR_STATUS_OPTIONS.find(o => o.id === sponsorStatus)?.label || 'Select Status...'}
+              </Text>
+              <MaterialCommunityIcons
+                name={isSponsorStatusPickOpen ? "chevron-up" : "chevron-down"}
+                size={20}
+                color="#666"
+                style={{ position: 'absolute', right: 12, top: 12 }}
+              />
+            </TouchableOpacity>
+            {isSponsorStatusPickOpen && (
+              <View style={[styles.dropdownContainer, { zIndex: 3001 }]}>
+                <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
+                  {SPONSOR_STATUS_OPTIONS.map(opt => (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={styles.countryItem}
+                      onPress={() => {
+                        setSponsorStatus(opt.id);
+                        setIsSponsorStatusPickOpen(false);
+                      }}
+                    >
+                      <Text style={styles.countryText}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Sponsor Age</Text>
             <TextInput
@@ -338,136 +375,175 @@ export default function App() {
               keyboardType="numeric"
             />
           </View>
-        </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Residence Country</Text>
-          <TouchableOpacity
-            style={styles.textInput}
-            onPress={() => setIsCountryPickerOpen(!isCountryPickerOpen)}
-          >
-            <Text style={{ color: residenceCountry ? '#333' : '#999' }}>
-              {residenceCountry || 'Select Country...'}
-            </Text>
-            <MaterialCommunityIcons
-              name={isCountryPickerOpen ? "chevron-up" : "chevron-down"}
-              size={20}
-              color="#666"
-              style={{ position: 'absolute', right: 12, top: 12 }}
-            />
-          </TouchableOpacity>
-
-          {isCountryPickerOpen && (
-            <View style={styles.dropdownContainer}>
+          <View style={styles.row}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Annual Income (£)</Text>
               <TextInput
-                style={styles.searchBar}
-                placeholder="Search country..."
-                value={countrySearch}
-                onChangeText={setCountrySearch}
+                style={styles.textInput}
+                value={annualIncome}
+                onChangeText={setAnnualIncome}
+                placeholder="e.g. 30000"
+                keyboardType="numeric"
               />
-              <ScrollView style={[styles.countryList, { maxHeight: 250 }]} nestedScrollEnabled>
-                {filteredCountries.map(country => (
-                  <TouchableOpacity
-                    key={country}
-                    style={styles.countryItem}
-                    onPress={() => {
-                      setResidenceCountry(country);
-                      setIsCountryPickerOpen(false);
-                      setCountrySearch('');
-                    }}
-                  >
-                    <Text style={styles.countryText}>{country}</Text>
-                  </TouchableOpacity>
-                ))}
-                {filteredCountries.length === 0 && (
-                  <Text style={styles.noResultsText}>No results</Text>
-                )}
-              </ScrollView>
             </View>
-          )}
-        </View>
-
-        <View style={{ marginTop: isCountryPickerOpen ? 10 : 0 }}>
-          {requiresTB && (
-            <TouchableOpacity
-              style={[styles.passportToggle, tbTestCompleted && styles.passportToggleActive, { marginBottom: 12, marginTop: 4 }]}
-              onPress={() => setTbTestCompleted(!tbTestCompleted)}
-            >
-              <MaterialCommunityIcons
-                name={tbTestCompleted ? "check-circle" : "alert-circle-outline"}
-                size={20}
-                color={tbTestCompleted ? "#fff" : "#D32F2F"}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Cash Savings (£)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={cashSavings}
+                onChangeText={setCashSavings}
+                placeholder="e.g. 10000"
+                keyboardType="numeric"
               />
-              <Text style={[styles.passportToggleText, tbTestCompleted && styles.passportToggleTextActive]}>
-                {tbTestCompleted ? "TB Test Certificate obtained" : "TB Test required for " + residenceCountry}
+            </View>
+          </View>
+        </View>
+
+        {/* --- APPLICANT SECTION --- */}
+        <View style={[styles.splitSection, { zIndex: (isCountryPickerOpen || isEnglishPickerOpen) ? 2000 : 1 }]}>
+          <Text style={styles.splitSectionHeader}>2. Applicant's Details</Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Applicant Age</Text>
+            <TextInput
+              style={styles.textInput}
+              value={applicantAge}
+              onChangeText={setApplicantAge}
+              placeholder="e.g. 25"
+              keyboardType="numeric"
+            />
+          </View>
+
+          <View style={[styles.inputGroup, { zIndex: isCountryPickerOpen ? 3000 : 1 }]}>
+            <Text style={styles.inputLabel}>Residence Country</Text>
+            <TouchableOpacity
+              style={styles.textInput}
+              onPress={() => setIsCountryPickerOpen(!isCountryPickerOpen)}
+            >
+              <Text style={{ color: residenceCountry ? '#333' : '#999' }}>
+                {residenceCountry || 'Select Country...'}
               </Text>
+              <MaterialCommunityIcons
+                name={isCountryPickerOpen ? "chevron-up" : "chevron-down"}
+                size={20}
+                color="#666"
+                style={{ position: 'absolute', right: 12, top: 12 }}
+              />
             </TouchableOpacity>
-          )}
-        </View>
 
-        {/* Only show English evidence options if not from an exempt country */}
-        {
-          !ENGLISH_EXEMPT_COUNTRIES.some(c => c.toLowerCase() === residenceCountry.trim().toLowerCase()) && (
-            <>
-              <Text style={styles.inputLabel}>English Language Evidence</Text>
-              <View style={styles.evidenceGrid}>
-                {ENGLISH_EVIDENCE_TYPES.filter(t => t.id !== 'none').map(type => (
-                  <TouchableOpacity
-                    key={type.id}
-                    style={[styles.evidenceBtn, englishEvidence === type.id && styles.evidenceBtnActive]}
-                    onPress={() => setEnglishEvidence(englishEvidence === type.id ? 'none' : type.id)}
-                  >
-                    <Text style={[styles.evidenceBtnText, englishEvidence === type.id && styles.evidenceBtnTextActive]}>
-                      {type.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {isCountryPickerOpen && (
+              <View style={styles.dropdownContainer}>
+                <TextInput
+                  style={styles.searchBar}
+                  placeholder="Search country..."
+                  value={countrySearch}
+                  onChangeText={setCountrySearch}
+                />
+                <ScrollView style={[styles.countryList, { maxHeight: 250 }]} nestedScrollEnabled>
+                  {filteredCountries.map(country => (
+                    <TouchableOpacity
+                      key={country}
+                      style={styles.countryItem}
+                      onPress={() => {
+                        setResidenceCountry(country);
+                        setIsCountryPickerOpen(false);
+                        setCountrySearch('');
+                      }}
+                    >
+                      <Text style={styles.countryText}>{country}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {filteredCountries.length === 0 && (
+                    <Text style={styles.noResultsText}>No results</Text>
+                  )}
+                </ScrollView>
               </View>
-            </>
-          )
-        }
-
-        <View style={styles.row}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Annual Income (£)</Text>
-            <TextInput
-              style={styles.textInput}
-              value={annualIncome}
-              onChangeText={setAnnualIncome}
-              placeholder="e.g. 30000"
-              keyboardType="numeric"
-            />
+            )}
           </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Cash Savings (£)</Text>
-            <TextInput
-              style={styles.textInput}
-              value={cashSavings}
-              onChangeText={setCashSavings}
-              placeholder="e.g. 10000"
-              keyboardType="numeric"
-            />
+
+          <View style={{ marginTop: 12, marginBottom: 12, zIndex: -1 }}>
+            {requiresTB && (
+              <TouchableOpacity
+                style={[styles.passportToggle, tbTestCompleted && styles.passportToggleActive, { marginTop: 0 }]}
+                onPress={() => setTbTestCompleted(!tbTestCompleted)}
+              >
+                <MaterialCommunityIcons
+                  name={tbTestCompleted ? "check-circle" : "alert-circle-outline"}
+                  size={20}
+                  color={tbTestCompleted ? "#fff" : "#D32F2F"}
+                />
+                <Text style={[styles.passportToggleText, tbTestCompleted && styles.passportToggleTextActive]}>
+                  {tbTestCompleted ? "TB Test Certificate obtained" : "TB Test required for " + residenceCountry}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Only show English evidence options if country is selected AND not exempt */}
+          {
+            residenceCountry && !ENGLISH_EXEMPT_COUNTRIES.some(c => c.toLowerCase() === residenceCountry.trim().toLowerCase()) && (
+              <View style={{ marginTop: 12, zIndex: isEnglishPickerOpen ? 2000 : 1 }}>
+                <Text style={styles.inputLabel}>English Language Evidence</Text>
+                <View style={styles.inputGroup}>
+                  <TouchableOpacity
+                    style={styles.textInput}
+                    onPress={() => setIsEnglishPickerOpen(!isEnglishPickerOpen)}
+                  >
+                    <Text style={{ color: englishEvidence !== 'none' ? '#333' : '#999' }}>
+                      {ENGLISH_EVIDENCE_TYPES.find(t => t.id === englishEvidence)?.label || 'Select Evidence Type...'}
+                    </Text>
+                    <MaterialCommunityIcons
+                      name={isEnglishPickerOpen ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color="#666"
+                      style={{ position: 'absolute', right: 12, top: 12 }}
+                    />
+                  </TouchableOpacity>
+
+                  {isEnglishPickerOpen && (
+                    <View style={[styles.dropdownContainer, { zIndex: 2000 }]}>
+                      <ScrollView style={[styles.countryList, { maxHeight: 250 }]} nestedScrollEnabled>
+                        {ENGLISH_EVIDENCE_TYPES.filter(t => t.id !== 'none').map(type => (
+                          <TouchableOpacity
+                            key={type.id}
+                            style={styles.countryItem}
+                            onPress={() => {
+                              setEnglishEvidence(type.id);
+                              setIsEnglishPickerOpen(false);
+                            }}
+                          >
+                            <Text style={styles.countryText}>{type.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )
+          }
+
+          <View style={styles.row}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Intended Application Date</Text>
+              <DatePicker
+                value={intendedAppDate}
+                onChangeText={(text) => handleDateChange(text, setIntendedAppDate)}
+                placeholder="DD/MM/YYYY"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Passport Expiry Date</Text>
+              <DatePicker
+                value={passportExpiryDate}
+                onChangeText={(text) => handleDateChange(text, setPassportExpiryDate)}
+                placeholder="DD/MM/YYYY"
+              />
+            </View>
           </View>
         </View>
 
-        <View style={styles.row}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Intended Application Date</Text>
-            <DatePicker
-              value={intendedAppDate}
-              onChangeText={(text) => handleDateChange(text, setIntendedAppDate)}
-              placeholder="DD/MM/YYYY"
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Passport Expiry Date</Text>
-            <DatePicker
-              value={passportExpiryDate}
-              onChangeText={(text) => handleDateChange(text, setPassportExpiryDate)}
-              placeholder="DD/MM/YYYY"
-            />
-          </View>
-        </View>
       </View >
     );
   };
@@ -633,14 +709,33 @@ export default function App() {
           <Text style={styles.dividerSubtext}>These items update automatically as you fill the form</Text>
         </View>
 
-        {MANDATORY_REQUIREMENTS.map(item => (
-          <MandatoryCard
-            key={item.id}
-            item={item}
-            isChecked={allMandatoryCheckedIds.includes(item.id)}
-            onPress={() => toggleMandatory(item.id)}
-          />
-        ))}
+        <View style={styles.checklistSplit}>
+          {/* Sponsor Checklist */}
+          <View style={styles.checklistBox}>
+            <Text style={styles.checklistSplitTitle}>Sponsor</Text>
+            {MANDATORY_REQUIREMENTS.filter(i => i.type === 'sponsor').map(item => (
+              <MandatoryCard
+                key={item.id}
+                item={item}
+                isChecked={allMandatoryCheckedIds.includes(item.id)}
+                onPress={() => toggleMandatory(item.id)}
+              />
+            ))}
+          </View>
+
+          {/* Applicant Checklist */}
+          <View style={styles.checklistBox}>
+            <Text style={styles.checklistSplitTitle}>Applicant</Text>
+            {MANDATORY_REQUIREMENTS.filter(i => i.type === 'applicant').map(item => (
+              <MandatoryCard
+                key={item.id}
+                item={item}
+                isChecked={allMandatoryCheckedIds.includes(item.id)}
+                onPress={() => toggleMandatory(item.id)}
+              />
+            ))}
+          </View>
+        </View>
 
         <TouchableOpacity
           style={[styles.nextButton, !allMandatoryChecked && styles.nextButtonDisabled]}
@@ -773,6 +868,42 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
+  },
+  splitSection: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E0E4F0',
+  },
+  splitSectionHeader: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A237E',
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F2F9',
+    paddingBottom: 8,
+  },
+  checklistSplit: {
+    flexDirection: 'column', // Stack vertically on mobile, could be row on tablet
+    gap: 16,
+  },
+  checklistBox: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E8EAF6',
+  },
+  checklistSplitTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#5C6BC0',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   inputContainer: {
     backgroundColor: '#fff',
@@ -951,7 +1082,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 5,
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
     zIndex: 1000,
   },
   searchBar: {

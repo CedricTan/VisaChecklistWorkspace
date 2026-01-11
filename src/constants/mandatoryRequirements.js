@@ -1,31 +1,28 @@
+export const SPONSOR_STATUS_OPTIONS = [
+    { id: 'british_citizen', label: 'British Citizen' },
+    { id: 'ilr', label: 'Indefinite Leave to Remain (ILR)' },
+    { id: 'eu_settled', label: 'EU Settled Status' },
+    { id: 'refugee', label: 'Refugee Status' },
+    { id: 'protection', label: 'Humanitarian Protection' },
+];
+
 export const MANDATORY_REQUIREMENTS = [
+    // Sponsor Requirements
     {
-        id: 'passport',
-        label: 'Valid Passport',
-        description: 'Do you and your partner have valid passports/travel documents?',
-        icon: 'passport',
-        autoCheckKey: 'passportValid',
+        id: 'sponsor_status',
+        label: 'Sponsor Status',
+        description: 'Does the sponsor have British Citizenship, ILR, or Settled Status?',
+        icon: 'account-check',
+        type: 'sponsor',
+        autoCheckKey: 'sponsorStatusValid',
     },
     {
-        id: 'age_requirement',
-        label: 'Age Requirement (18+)',
-        description: 'Are both the applicant and the sponsor aged 18 or over?',
-        icon: 'account-clock',
-        autoCheckKey: 'ageValid',
-    },
-    {
-        id: 'english_language',
-        label: 'English Language Requirement',
-        description: 'Can you prove you meet the English language requirement (e.g., A1 level test, degree in English, or exempt nationality)?',
-        icon: 'translate',
-        autoCheckKey: 'englishValid',
-    },
-    {
-        id: 'tb_test',
-        label: 'TB Test (If applicable)',
-        description: 'If you are applying from a country on the TB test list, do you have a valid certificate?',
-        icon: 'medical-bag',
-        autoCheckKey: 'tbValid',
+        id: 'sponsor_age',
+        label: 'Sponsor Age (18+)',
+        description: 'Is the sponsor aged 18 or over?',
+        icon: 'numeric-1-box',
+        type: 'sponsor',
+        autoCheckKey: 'sponsorAgeValid',
     },
     {
         id: 'financial_threshold',
@@ -33,7 +30,42 @@ export const MANDATORY_REQUIREMENTS = [
         description: 'Do you meet the £29,000 income threshold or have £88,500 in savings?',
         icon: 'currency-gbp',
         isFinancial: true,
+        type: 'sponsor',
         autoCheckKey: 'financialValid',
+    },
+
+    // Applicant Requirements
+    {
+        id: 'applicant_age',
+        label: 'Applicant Age (18+)',
+        description: 'Is the applicant aged 18 or over?',
+        icon: 'numeric-2-box',
+        type: 'applicant',
+        autoCheckKey: 'applicantAgeValid',
+    },
+    {
+        id: 'passport',
+        label: 'Valid Passport',
+        description: 'Does the applicant have a valid passport?',
+        icon: 'passport',
+        type: 'applicant',
+        autoCheckKey: 'passportValid',
+    },
+    {
+        id: 'english_language',
+        label: 'English Language',
+        description: 'Can you prove you meet the English language requirement?',
+        icon: 'translate',
+        type: 'applicant',
+        autoCheckKey: 'englishValid',
+    },
+    {
+        id: 'tb_test',
+        label: 'TB Test',
+        description: 'If applicable, has the TB test certificate been obtained?',
+        icon: 'medical-bag',
+        type: 'applicant',
+        autoCheckKey: 'tbValid',
     },
 ];
 
@@ -92,9 +124,9 @@ export const ENGLISH_EVIDENCE_TYPES = [
 ];
 
 export const ENGLISH_EXEMPT_COUNTRIES = [
-    'Antigua and Barbuda', 'Australia', 'The Bahamas', 'Barbados', 'Belize',
+    'Antigua and Barbuda', 'Australia', 'Bahamas', 'Barbados', 'Belize',
     'British Overseas Territories', 'Canada', 'Dominica', 'Grenada', 'Guyana',
-    'Ireland', 'Jamaica', 'Malta', 'New Zealand', 'St Kitts and Nevis',
-    'St Lucia', 'St Vincent and the Grenadines', 'Trinidad and Tobago',
-    'United Kingdom', 'USA'
+    'Ireland', 'Jamaica', 'Malta', 'New Zealand', 'Saint Kitts and Nevis',
+    'Saint Lucia', 'Saint Vincent and the Grenadines', 'Trinidad and Tobago',
+    'United States of America'
 ];
