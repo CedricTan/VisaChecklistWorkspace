@@ -1009,22 +1009,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F0F2F9',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#E0E4F0',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: '#1A237E', // Primary blue to indicate action
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   passportToggleActive: {
     backgroundColor: '#4CAF50',
-    borderColor: '#43A047',
+    borderColor: '#4CAF50',
   },
   passportToggleText: {
     marginLeft: 8,
     fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
+    color: '#1A237E', // Changed to primary blue
+    fontWeight: '700', // Made slightly bolder
   },
   passportToggleTextActive: {
     color: '#fff',
